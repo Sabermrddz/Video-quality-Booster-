@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GAN Video Enhancer — 4× AI Upscale</title>
+  <meta name="description" content="Upload a clip up to 10 seconds, a free Kaggle GPU worker enhances it 4× with pretrained Real-ESRGAN, then compare before/after." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563EB'%3E%3Cpath d='M12 2l1.9 5.7L19.6 9.6 13.9 11.5 12 17.2 10.1 11.5 4.4 9.6 10.1 7.7z'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <header class="topbar" id="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/>
+            <path d="M19 3v4M21 5h-4M5 17v4M7 19H3"/>
+          </svg>
+        </span>
+        <span class="brand-name">GAN Video Enhancer</span>
+      </a>
+
+      <nav class="navlinks" aria-label="Main">
+        <a href="#workspace">Workspace</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="topnav">
+        <span class="pill" id="apiPill" title="Backend health"><span class="pill-dot" id="apiDot"></span><span id="apiLabel">Connecting…</span></span>
+        <a class="btn primary btn-sm" href="#workspace">Try it now</a>
+        <button class="menubtn" id="menuBtn" aria-label="Toggle menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="mobilemenu hidden" id="mobileMenu">
+      <a href="#workspace">Workspace</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <span class="hero-badge">
+        <span class="badge-pulse" aria-hidden="true"></span>
+        Pretrained Real-ESRGAN · runs on a free Kaggle GPU
+      </span>
+
+      <h1>
+        Turn blurry clips into
+        <span class="accent">crisp 4× video</span> with AI
+      </h1>
+
+      <p class="lede">
+        Upload up to <strong>10 seconds</strong> of footage. A GPU worker enhances every frame with a
+        pretrained GAN while you watch live logs. Scrub the divider and compare the result frame by frame.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn primary btn-lg" href="#workspace">
+          <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v2.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V15"/></svg>
+          Upload a clip
+        </a>
+        <a class="btn ghost btn-lg" href="#how">See how it works</a>
+      </div>
+
+      <div class="hero-stats" role="list">
+        <div class="hstat" role="listitem"><span class="hstat-v">10<span class="hstat-u">s</span></span><span class="hstat-k">Max clip length</span></div>
+        <div class="hstat" role="listitem"><span class="hstat-v">50<span class="hstat-u">MB</span></span><span class="hstat-k">Max file size</span></div>
+        <div class="hstat" role="listitem"><span class="hstat-v accent">4<span class="hstat-u">×</span></span><span class="hstat-k">Upscale factor</span></div>
+        <div class="hstat" role="listitem"><span class="hstat-v">$0</span><span class="hstat-k">Cost to run</span></div>
+      </div>
+    </section>
+
+    <div class="stack-strip" aria-hidden="true">
+      <span>Real-ESRGAN</span><i>·</i><span>PyTorch</span><i>·</i><span>Kaggle T4 GPU</span><i>·</i><span>Node.js + Express</span><i>·</i><span>Backblaze B2</span><i>·</i><span>ffmpeg</span><i>·</i><span>Heroku</span>
+    </div>
+
+    <section class="workspace" id="workspace">
+      <article class="panel" id="panelUpload">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="stepchip">Step 1 · Upload</span>
+            <h2>Drop your clip</h2>
+            <p class="panel-sub">MP4 or WebM · 360p–480p gives the fastest turnaround</p>
+          </div>
+          <span class="tag"><span class="tag-dot"></span>×4 scale locked</span>
+        </div>
+
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a video file to upload">
+          <span class="dz-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/>
+              <path d="M4 15v2.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V15"/>
+            </svg>
+          </span>
+          <p class="dz-title">Drag &amp; drop a video, or <span class="link">browse files</span></p>
+          <p class="dz-sub">Goes straight to private storage — only you can see it</p>
+        </div>
+        <input type="file" id="fileInput" accept="video/mp4,video/webm,video/*" hidden />
+
+        <div class="filechip hidden" id="fileChip">
+          <div class="fc-thumb">
+            <video class="fc-preview" id="fcPreview" muted playsinline preload="metadata"></video>
+            <span class="fc-badge" id="fcDuration">--:--</span>
+          </div>
+          <div class="fc-meta">
+            <span class="fc-name" id="fcName">clip.mp4</span>
+            <span class="fc-sub" id="fcSub">—</span>
+          </div>
+          <span class="fc-ok" title="Ready to enhance">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <button class="iconbtn" id="fcRemove" aria-label="Remove file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <ul class="checks" id="checks" aria-label="File requirements">
+          <li class="check" id="check-type">
+            <span class="check-ico idle">
+              <svg class="ico-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+              <svg class="ico-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              <svg class="ico-bad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </span>
+            <span>Video file <em class="check-val">(MP4 / WebM)</em></span>
+          </li>
+          <li class="check" id="check-duration">
+            <span class="check-ico idle">
+              <svg class="ico-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+              <svg class="ico-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              <svg class="ico-bad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </span>
+            <span>Duration ≤ 10 s <em class="check-val" id="checkDurationVal"></em></span>
+          </li>
+          <li class="check" id="check-size">
+            <span class="check-ico idle">
+              <svg class="ico-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+              <svg class="ico-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              <svg class="ico-bad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </span>
+            <span>Size ≤ 50 MB <em class="check-val" id="checkSizeVal"></em></span>
+          </li>
+        </ul>
+
+        <div class="panel-foot">
+          <div class="foot-chips">
+            <span class="chip mono">realesr-general-x4v3</span>
+            <span class="chip">GPU: T4 / P100</span>
+          </div>
+          <button class="btn primary btn-lg" id="enhanceBtn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.6 5.6 1.9-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/></svg>
+            Enhance video
+          </button>
+        </div>
+      </article>
+
+      <article class="panel hidden" id="panelProgress" aria-live="polite">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="stepchip live"><span class="badge-pulse"></span>Live</span>
+            <h2 id="progressTitle">Working on your clip</h2>
+            <p class="panel-sub">Job <span id="jobIdText" class="mono">…</span></p>
+          </div>
+          <button class="btn ghost btn-sm" id="cancelBtn">Cancel</button>
+        </div>
+
+        <div class="prog-layout">
+          <ol class="timeline" id="timeline">
+            <li class="tl-item" data-phase="1">
+              <span class="tl-dot"><span class="tl-num">1</span><svg class="tl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+              <div class="tl-body"><b>Upload</b><p>Encrypted, straight to storage</p></div>
+            </li>
+            <li class="tl-item" data-phase="2">
+              <span class="tl-dot"><span class="tl-num">2</span><svg class="tl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+              <div class="tl-body"><b>Queue</b><p>Waiting for a free GPU worker</p></div>
+            </li>
+            <li class="tl-item" data-phase="3">
+              <span class="tl-dot"><span class="tl-num">3</span><svg class="tl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+              <div class="tl-body"><b>Enhance</b><p>Real-ESRGAN ×4 on every frame</p></div>
+            </li>
+            <li class="tl-item" data-phase="4">
+              <span class="tl-dot"><span class="tl-num">4</span><svg class="tl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+              <div class="tl-body"><b>Ready</b><p>Compare and download</p></div>
+            </li>
+          </ol>
+
+          <div class="prog-center">
+            <div class="ring" id="ring">
+              <svg viewBox="0 0 160 160" aria-hidden="true">
+                <circle class="ring-track" cx="80" cy="80" r="70"/>
+                <circle class="ring-prog" id="ringProg" cx="80" cy="80" r="70"/>
+              </svg>
+              <div class="ring-center">
+                <span class="ring-value" id="ringValue">0%</span>
+                <span class="ring-label" id="ringLabel">upload</span>
+              </div>
+            </div>
+
+            <p class="status-text" id="statusText">Uploading…</p>
+            <span class="elapsed mono" id="elapsed">0:00 elapsed</span>
+
+            <div class="prog-chips">
+              <span class="chip">×4</span>
+              <span class="chip">10 s max</span>
+              <span class="chip mono" id="storageChip">storage: …</span>
+            </div>
+          </div>
+
+          <div class="terminal" id="terminal">
+            <div class="term-bar">
+              <span class="term-title">worker.log</span>
+              <span class="term-live" id="termLive"><span class="badge-pulse"></span>live</span>
+            </div>
+            <div class="term-body" id="logBody" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="alert warn hidden" id="workerOffline" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <div>
+            <strong>No worker picked up the job for 60 s.</strong>
+            <p>The Kaggle worker may be offline — keep this tab open, the job starts automatically when it connects.</p>
+          </div>
+        </div>
+
+        <div class="alert error hidden" id="failedAlert" role="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <div>
+            <strong>Enhancement failed</strong>
+            <p id="failedMsg">Something went wrong on the worker.</p>
+          </div>
+        </div>
+
+        <div class="row-actions hidden" id="failedActions">
+          <button class="btn primary" id="retryBtn">Try again</button>
+          <button class="btn ghost" id="backBtn">Back to upload</button>
+        </div>
+      </article>
+
+      <article class="panel hidden" id="panelResult">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="stepchip done">Step 3 · Result</span>
+            <h2>Before / after</h2>
+            <p class="panel-sub">Drag the divider — press play to compare in motion</p>
+          </div>
+          <span class="tag caution">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.6 5.6 1.9-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/></svg>
+            AI-enhanced: not the original footage
+          </span>
+        </div>
+
+        <div class="compare loading" id="compare">
+          <video id="videoAfter" class="cmp-video cmp-after" muted playsinline loop preload="metadata"></video>
+          <video id="videoBefore" class="cmp-video cmp-before" muted playsinline loop preload="metadata"></video>
+          <span class="corner-label left">Original</span>
+          <span class="corner-label right">Enhanced ×4</span>
+          <div class="compare-handle" id="handle" role="slider" aria-label="Comparison divider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0">
+            <span class="chev" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+            </span>
+            <span class="grip"></span>
+            <span class="chev" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </span>
+          </div>
+          <button class="playbtn" id="playBtn" aria-label="Play or pause comparison">
+            <svg class="ico-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
+            <svg class="ico-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+          </button>
+          <div class="cmp-skeleton" aria-hidden="true"><span class="sk-spin"></span></div>
+        </div>
+
+        <div class="scrub-row">
+          <span class="mono scrub-time" id="timeCur">0:00</span>
+          <input type="range" class="scrub" id="scrub" min="0" max="1000" value="0" aria-label="Seek" />
+          <span class="mono scrub-time" id="timeDur">0:00</span>
+          <label class="switch" for="autoplayToggle" title="Play the comparison automatically when it loads">
+            <input type="checkbox" id="autoplayToggle" checked />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="switch-text">Auto-play</span>
+          </label>
+        </div>
+
+        <div class="result-actions">
+          <button class="btn primary" id="downloadBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 19h16"/></svg>
+            Download enhanced
+          </button>
+          <button class="btn ghost" id="againBtn">Enhance another clip</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span class="stat-k">Processing time</span><span class="stat-v" id="statTime">—</span></div>
+          <div class="stat"><span class="stat-k">Input</span><span class="stat-v mono" id="statIn">—</span></div>
+          <div class="stat"><span class="stat-k">Output</span><span class="stat-v mono" id="statOut">—</span></div>
+          <div class="stat"><span class="stat-k">Scale</span><span class="stat-v accent">×4</span></div>
+          <div class="stat"><span class="stat-k">Model</span><span class="stat-v">Real-ESRGAN</span></div>
+          <div class="stat"><span class="stat-k">Job</span><span class="stat-v mono" id="statJob">—</span></div>
+        </div>
+
+        <p class="result-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.6 5.6 1.9-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/></svg>
+          AI-enhanced output — hallucinated detail is possible. Your original file is preserved.
+        </p>
+      </article>
+    </section>
+
+    <section class="band" id="how">
+      <div class="section inband">
+        <div class="section-head">
+          <span class="eyebrow-pill">Pipeline</span>
+          <h2>Three steps, zero dollars</h2>
+          <p>Browsers, a tiny Node queue, and one free GPU notebook do all the work.</p>
+        </div>
+        <div class="steps-grid">
+          <div class="step-card">
+            <span class="step-no">01</span>
+            <span class="step-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v2.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V15"/></svg>
+            </span>
+            <h3>Upload your clip</h3>
+            <p>The browser validates length and size, then PUTs the file straight to private B2 storage with a presigned URL.</p>
+          </div>
+          <div class="step-card">
+            <span class="step-no">02</span>
+            <span class="step-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M9 6V4m6 2V4M9 20v-2m6 2v-2M4 11h16M4 13h16"/></svg>
+            </span>
+            <h3>GPU worker enhances ×4</h3>
+            <p>A Kaggle notebook polls the queue, runs pretrained Real-ESRGAN on every frame and uploads the result.</p>
+          </div>
+          <div class="step-card">
+            <span class="step-no">03</span>
+            <span class="step-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5v13l11-6.5z"/><path d="M4 4v16"/></svg>
+            </span>
+            <h3>Compare &amp; download</h3>
+            <p>The page shows a draggable before/after slider, the measured processing time, and a download button.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-head">
+        <span class="eyebrow-pill">Built like a product</span>
+        <h2>Everything you'd expect from a real tool</h2>
+        <p>Even though the whole pipeline costs zero dollars to run.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature">
+          <span class="f-ico violet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6 5.6 1.9-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/></svg>
+          </span>
+          <h3>Pretrained GAN</h3>
+          <p>Real-ESRGAN <span class="mono">realesr-general-x4v3</span> — battle-tested 4× super-resolution, weights download automatically.</p>
+        </div>
+        <div class="feature">
+          <span class="f-ico success">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M9 6V4m6 2V4M4 11h16"/></svg>
+          </span>
+          <h3>Free GPU pipeline</h3>
+          <p>Kaggle's T4/P100 does the heavy lifting. No cloud GPU bill, no API keys on the worker — just presigned URLs.</p>
+        </div>
+        <div class="feature">
+          <span class="f-ico primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v8l-9 5-9-5V8l9-5 9 5z"/><path d="M3.3 7.5L12 12.5l8.7-5M12 12.5V21"/></svg>
+          </span>
+          <h3>Private by design</h3>
+          <p>Files live in a private Backblaze B2 bucket behind short-lived presigned URLs. B2 keys never leave the server.</p>
+        </div>
+        <div class="feature">
+          <span class="f-ico warning">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l3-8 4 16 3-8h2"/></svg>
+          </span>
+          <h3>Live status &amp; logs</h3>
+          <p>Progress ring, step timeline and a live worker log stream while your clip is in flight — no page refreshes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq">
+      <div class="section-head">
+        <span class="eyebrow-pill">Questions</span>
+        <h2>Good questions</h2>
+      </div>
+      <div class="faq">
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Which model runs on my clip?<span class="faq-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span></button>
+          <div class="faq-a"><div class="faq-inner"><p>A pretrained <strong>Real-ESRGAN</strong> (<span class="mono">realesr-general-x4v3</span>). Training our own temporal GAN stays future work — this prototype demonstrates the full pipeline and UI.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">How long does it take?<span class="faq-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span></button>
+          <div class="faq-a"><div class="faq-inner"><p>A few minutes for a 10 s 480p clip on a free T4, plus queue time if a worker is busy. The measured time is shown in the result stats.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Is it really free?<span class="faq-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span></button>
+          <div class="faq-a"><div class="faq-inner"><p>Yes — Heroku for the queue, Backblaze B2 for storage and Kaggle's free GPU. Total running cost: <strong>$0</strong>.</p></div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Who can see my video?<span class="faq-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></span></button>
+          <div class="faq-a"><div class="faq-inner"><p>Nobody but you. Files sit in a private bucket and links are short-lived presigned URLs. Your original is kept and downloadable alongside the enhanced version.</p></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <span class="brand-mark small" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z"/></svg>
+        </span>
+        <div>
+          <b>GAN Video Enhancer</b>
+          <p>Prototype · pretrained Real-ESRGAN · our temporal GAN is the designed next step.</p>
+        </div>
+      </div>
+      <div class="foot-col">
+        <span class="foot-h">Product</span>
+        <a href="#workspace">Workspace</a>
+        <a href="#how">Pipeline</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="foot-col">
+        <span class="foot-h">Release notes</span>
+        <p class="foot-news-sub">One email when the pipeline ships something new.</p>
+        <form class="newsletter" id="newsForm">
+          <input type="email" required placeholder="you@studio.com" aria-label="Email address" />
+          <button class="btn primary" type="submit">Subscribe</button>
+        </form>
+      </div>
+    </div>
+    <p class="foot-copy">© 2026 — built for the demo. Heroku · Backblaze B2 · Kaggle GPU.</p>
+  </footer>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
