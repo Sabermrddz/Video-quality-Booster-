@@ -4,59 +4,53 @@
   const $ = (id) => document.getElementById(id);
 
   const els = {
-    topbar: $("topbar"),
     apiDot: $("apiDot"),
     apiLabel: $("apiLabel"),
-    menuBtn: $("menuBtn"),
-    mobileMenu: $("mobileMenu"),
-    autoplayToggle: $("autoplayToggle"),
-    newsForm: $("newsForm"),
-    panelUpload: $("panelUpload"),
-    panelProgress: $("panelProgress"),
-    panelResult: $("panelResult"),
-    dropzone: $("dropzone"),
+    paneUpload: $("paneUpload"),
+    paneProc: $("paneProc"),
+    paneResult: $("paneResult"),
+    dz: $("dz"),
     fileInput: $("fileInput"),
     fileChip: $("fileChip"),
-    fcPreview: $("fcPreview"),
     fcName: $("fcName"),
     fcSub: $("fcSub"),
-    fcDuration: $("fcDuration"),
     fcRemove: $("fcRemove"),
-    checkType: $("check-type"),
-    checkDuration: $("check-duration"),
-    checkSize: $("check-size"),
-    checkDurationVal: $("checkDurationVal"),
-    checkSizeVal: $("checkSizeVal"),
+    dzNotice: $("dzNotice"),
     enhanceBtn: $("enhanceBtn"),
-    progressTitle: $("progressTitle"),
-    jobIdText: $("jobIdText"),
-    cancelBtn: $("cancelBtn"),
-    timeline: $("timeline"),
-    ring: $("ring"),
-    ringProg: $("ringProg"),
-    ringValue: $("ringValue"),
-    ringLabel: $("ringLabel"),
-    statusText: $("statusText"),
-    elapsed: $("elapsed"),
-    storageChip: $("storageChip"),
-    logBody: $("logBody"),
+    procFail: $("procFail"),
+    procFailMsg: $("procFailMsg"),
+    procSpin: $("procSpin"),
+    procTitle: $("procTitle"),
+    procSub: $("procSub"),
+    procFill: $("procFill"),
+    procPct: $("procPct"),
+    stepUpload: $("stepUpload"),
+    stepQueue: $("stepQueue"),
+    stepGpu: $("stepGpu"),
+    procWarn: $("procWarn"),
     termLive: $("termLive"),
-    workerOffline: $("workerOffline"),
-    failedAlert: $("failedAlert"),
-    failedMsg: $("failedMsg"),
-    failedActions: $("failedActions"),
-    retryBtn: $("retryBtn"),
-    backBtn: $("backBtn"),
+    logBody: $("logBody"),
     compare: $("compare"),
     handle: $("handle"),
     videoBefore: $("videoBefore"),
     videoAfter: $("videoAfter"),
     playBtn: $("playBtn"),
-    scrub: $("scrub"),
+    cmpTime: $("cmpTime"),
     timeCur: $("timeCur"),
     timeDur: $("timeDur"),
-    downloadBtn: $("downloadBtn"),
+    scrub: $("scrub"),
+    footUpload: $("footUpload"),
+    footProc: $("footProc"),
+    footDone: $("footDone"),
+    footFail: $("footFail"),
+    footFailMsg: $("footFailMsg"),
+    cancelBtn: $("cancelBtn"),
+    elapsed: $("elapsed"),
+    retryBtn: $("retryBtn"),
+    backBtn: $("backBtn"),
     againBtn: $("againBtn"),
+    downloadBtn: $("downloadBtn"),
+    resultStats: $("resultStats"),
     statTime: $("statTime"),
     statIn: $("statIn"),
     statOut: $("statOut"),
@@ -68,10 +62,9 @@
   const LIMIT_SIZE = 50 * 1024 * 1024;
   const POLL_MS = 3000;
   const WORKER_WARN_MS = 60000;
-  const RING_C = 439.8;
 
   const state = {
-    phase: "idle",
+    phase: "idle", // idle | ready | uploading | queued | processing | done | failed
     file: null,
     fileUrl: null,
     duration: null,
@@ -89,7 +82,6 @@
     framesDone: 0,
     framesTotal: 300,
     lastQueueLog: 0,
-    autoplay: true,
   };
 
   function fmtBytes(n) {
@@ -144,8 +136,7 @@
     ln.firstElementChild.textContent = stamp();
     ln.lastElementChild.textContent = msg;
     els.logBody.appendChild(ln);
-    while (els.logBody.children.length > 80) els.logBody.firstElementChild.remove();
-    els.logBody.scrollTop = els.logBody.scrollHeight;
+    while (els.logBody.children.length > 40) els.logBody.firstElementChild.remove();
   }
 
   function clearLogs() {
@@ -158,47 +149,58 @@
       if (!r.ok) throw new Error("bad status");
       const data = await r.json();
       state.storage = data.storage;
-      els.apiDot.className = "pill-dot ok";
-      els.apiLabel.textContent = data.storage === "b2" ? "API online · B2 storage" : "API online · local mode";
+      els.apiDot.className = "status-dot ok";
+      els.apiLabel.textContent = "Worker ready";
     } catch {
       state.storage = "offline";
-      els.apiDot.className = "pill-dot bad";
+      els.apiDot.className = "status-dot bad";
       els.apiLabel.textContent = "API offline";
     }
   }
 
-  function showPanel(name) {
-    els.panelUpload.classList.toggle("hidden", name !== "upload");
-    els.panelProgress.classList.toggle("hidden", name !== "progress");
-    els.panelResult.classList.toggle("hidden", name !== "result");
+  function setPhase(name) {
+    state.phase = name;
+    els.paneUpload.classList.toggle("hidden", name !== "idle" && name !== "ready");
+    els.paneProc.classList.toggle("hidden", !["uploading", "queued", "processing", "failed"].includes(name));
+    els.paneResult.classList.toggle("hidden", name !== "done");
+    els.footUpload.classList.toggle("hidden", name !== "ready");
+    els.footProc.classList.toggle("hidden", !["uploading", "queued", "processing"].includes(name));
+    els.footDone.classList.toggle("hidden", name !== "done");
+    els.footFail.classList.toggle("hidden", name !== "failed");
   }
 
-  function setRing(pct, label, mode) {
-    els.ring.classList.toggle("indeterminate", mode === "spin");
-    els.ring.classList.toggle("fail", mode === "fail");
+  function notice(msg) {
+    if (!msg) {
+      els.dzNotice.classList.add("hidden");
+      els.dzNotice.textContent = "";
+    } else {
+      els.dzNotice.textContent = msg;
+      els.dzNotice.classList.remove("hidden");
+    }
+  }
+
+  function setBar(pct, mode) {
+    els.procFill.classList.toggle("indeterminate", mode === "spin");
     if (mode === "spin") {
-      els.ringValue.textContent = "…";
+      els.procPct.textContent = "…";
     } else {
       const p = Math.min(100, Math.max(0, Math.round(pct)));
-      els.ringValue.textContent = p + "%";
-      els.ringProg.style.strokeDashoffset = String(RING_C * (1 - p / 100));
+      els.procFill.style.width = p + "%";
+      els.procPct.textContent = p + "%";
     }
-    if (label) els.ringLabel.textContent = label;
   }
 
-  function setTimeline(phase) {
-    els.timeline.querySelectorAll(".tl-item").forEach((li) => {
-      const n = Number(li.dataset.phase);
-      li.classList.toggle("done", n < phase || (phase === 4 && n === phase));
-      li.classList.toggle("active", n === phase && phase < 4);
+  function setStep(active) {
+    const order = [els.stepUpload, els.stepQueue, els.stepGpu];
+    order.forEach((li, i) => {
+      li.classList.toggle("done", i < active);
+      li.classList.toggle("active", i === active);
     });
-    const p = phase <= 1 ? 0 : ((phase - 1) / 3) * 100;
-    els.timeline.style.setProperty("--tl-p", p + "%");
   }
 
-  function resetUI(keepFile) {
+  function resetUI() {
     stopTimers();
-    state.phase = "idle";
+    setPhase("idle");
     state.jobId = null;
     state.resultUrls = null;
     state.processingSeconds = null;
@@ -206,38 +208,32 @@
     state.procPct = 0;
     state.framesDone = 0;
     state.lastQueueLog = 0;
-    els.workerOffline.classList.add("hidden");
-    els.failedAlert.classList.add("hidden");
-    els.failedActions.classList.add("hidden");
-    els.ring.classList.remove("indeterminate", "fail");
-    els.ringProg.style.strokeDashoffset = String(RING_C);
-    setRing(0, "idle");
-    setTimeline(0);
+    if (state.fileUrl) {
+      URL.revokeObjectURL(state.fileUrl);
+      state.fileUrl = null;
+    }
+    state.file = null;
+    state.duration = null;
+    els.fileInput.value = "";
+    els.fileChip.classList.add("hidden");
+    els.enhanceBtn.classList.add("hidden");
+    els.dz.classList.remove("dragover");
+    notice("");
+    els.procWarn.classList.add("hidden");
+    els.procFail.classList.add("hidden");
+    els.procFill.classList.remove("indeterminate");
+    els.procFill.style.width = "0%";
+    els.procPct.textContent = "0%";
+    setStep(0);
     els.elapsed.textContent = "0:00 elapsed";
     els.playBtn.classList.remove("playing");
     els.termLive.style.opacity = "1";
-
-    if (!keepFile) {
-      if (state.fileUrl) {
-        URL.revokeObjectURL(state.fileUrl);
-        state.fileUrl = null;
-      }
-      state.file = null;
-      state.duration = null;
-      els.fileInput.value = "";
-      els.fileChip.classList.add("hidden");
-      els.fcPreview.removeAttribute("src");
-      els.fcPreview.load();
-      els.dropzone.classList.remove("hidden");
-      els.checkType.className = "check";
-      els.checkDuration.className = "check";
-      els.checkSize.className = "check";
-      els.checkDurationVal.textContent = "";
-      els.checkSizeVal.textContent = "";
-      els.enhanceBtn.disabled = true;
-      clearLogs();
-    }
-    showPanel("upload");
+    els.scrub.value = 0;
+    els.scrub.style.setProperty("--fill", "0%");
+    els.timeCur.textContent = "0:00";
+    els.timeDur.textContent = "0:00";
+    els.resultStats.classList.add("hidden");
+    clearLogs();
   }
 
   function startTick() {
@@ -248,7 +244,7 @@
       els.elapsed.textContent = fmtTime(s) + " elapsed";
       if (state.phase === "queued" && !state.warnedWorker && Date.now() - state.queuedAt > WORKER_WARN_MS) {
         state.warnedWorker = true;
-        els.workerOffline.classList.remove("hidden");
+        els.procWarn.classList.remove("hidden");
         pushLog("worker idle 60s — is the Kaggle notebook running?", "warn");
       }
       if (state.phase === "queued" && Date.now() - state.lastQueueLog > 15000) {
@@ -264,41 +260,28 @@
     if (state.frameTimer) { clearInterval(state.frameTimer); state.frameTimer = null; }
   }
 
-  function setCheck(el, ok) {
-    el.classList.toggle("pass", ok === true);
-    el.classList.toggle("fail", ok === false);
-  }
-
   function handleFile(file) {
     if (!file) return;
-    if (file.size > LIMIT_SIZE) {
-      setCheck(els.checkType, false);
-      setCheck(els.checkSize, false);
-      toast("error", `File is ${fmtBytes(file.size)} — the limit is 50 MB.`);
-      return;
-    }
-    const okType = file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
-    if (!okType) {
-      setCheck(els.checkType, false);
+    if (!file.type.startsWith("video/") && !/\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
+      notice("Please select a video file.");
       toast("error", "That doesn't look like a video file.");
       return;
     }
-    if (state.fileUrl) URL.revokeObjectURL(state.fileUrl);
+    if (file.size > LIMIT_SIZE) {
+      notice(`This file is ${fmtBytes(file.size)} — the limit is 50 MB.`);
+      toast("error", "File too large — 50 MB max.");
+      return;
+    }
     state.file = file;
     state.fileUrl = URL.createObjectURL(file);
-    els.fcPreview.src = state.fileUrl;
     els.fcName.textContent = file.name;
     els.fcName.title = file.name;
     els.fcSub.textContent = fmtBytes(file.size);
-    els.fcDuration.textContent = "--:--";
-    els.checkSizeVal.textContent = fmtBytes(file.size);
-    setCheck(els.checkSize, true);
-    setCheck(els.checkType, true);
-    els.dropzone.classList.add("hidden");
     els.fileChip.classList.remove("hidden");
+    notice("");
     els.enhanceBtn.disabled = true;
-    els.checkDuration.className = "check";
-    els.checkDurationVal.textContent = "checking…";
+    els.enhanceBtn.classList.add("hidden");
+    setPhase("idle");
 
     const probe = document.createElement("video");
     probe.preload = "metadata";
@@ -321,16 +304,18 @@
     function finishDuration(d) {
       if (isFinite(d) && d > 0) {
         state.duration = d;
-        els.fcDuration.textContent = fmtTime(d);
-        els.checkDurationVal.textContent = fmtTime(d) + " / 0:10";
-        const ok = d <= LIMIT_DURATION_S + 0.05;
-        setCheck(els.checkDuration, ok);
-        if (!ok) toast("error", "Clip is longer than 10 seconds — trim it first.");
-        els.enhanceBtn.disabled = !ok;
+        if (d > LIMIT_DURATION_S + 0.05) {
+          notice("This clip is over 10 seconds. Pick a shorter one.");
+          toast("error", "Clip is longer than 10 seconds — trim it first.");
+        } else {
+          notice("");
+          state.phase = "ready";
+          els.enhanceBtn.disabled = false;
+          els.enhanceBtn.classList.remove("hidden");
+        }
       } else {
         state.duration = null;
-        els.checkDurationVal.textContent = "unknown";
-        setCheck(els.checkDuration, false);
+        notice("Couldn't read the clip duration in this browser.");
         toast("error", "Couldn't read the clip duration in this browser.");
       }
     }
@@ -362,33 +347,29 @@
   function startFrameSim() {
     state.framesDone = 0;
     state.procPct = 8;
-    setRing(state.procPct, "gpu");
+    setBar(state.procPct);
     if (state.frameTimer) clearInterval(state.frameTimer);
     state.frameTimer = setInterval(() => {
       if (state.phase !== "processing") return;
-      const inc = 2 + Math.random() * 4;
-      state.procPct = Math.min(92, state.procPct + (92 - state.procPct) * 0.09 + inc * 0.4);
+      state.procPct = Math.min(92, state.procPct + (92 - state.procPct) * 0.09 + (1 + Math.random() * 2));
       state.framesDone = Math.min(
         state.framesTotal - 1,
         Math.round((state.procPct / 100) * state.framesTotal)
       );
-      const fps = (5.5 + Math.random() * 3).toFixed(1);
-      setRing(state.procPct, "gpu");
-      pushLog(`frame ${state.framesDone}/${state.framesTotal} · ${fps} fps`, "info");
+      setBar(state.procPct);
+      pushLog(`frame ${state.framesDone}/${state.framesTotal} · ${(5.5 + Math.random() * 3).toFixed(1)} fps`, "info");
     }, 1600);
   }
 
   async function beginEnhance() {
-    if (!state.file || state.phase !== "idle") return;
-    state.phase = "uploading";
-    showPanel("progress");
+    if (!state.file || (state.phase !== "idle" && state.phase !== "ready")) return;
+    setPhase("uploading");
     clearLogs();
-    els.progressTitle.textContent = "Uploading your clip";
-    els.jobIdText.textContent = "creating…";
-    els.storageChip.textContent = "storage: " + state.storage;
-    els.statusText.textContent = "Preparing upload…";
-    setTimeline(1);
-    setRing(0, "upload");
+    els.procTitle.textContent = "Uploading your clip";
+    els.procSub.textContent = "Straight to private storage";
+    els.procWarn.classList.add("hidden");
+    setStep(0);
+    setBar(0);
     startTick();
     pushLog("POST /api/jobs → creating job…", "info");
 
@@ -397,15 +378,12 @@
       if (!created.ok) throw new Error(`Could not create job (${created.status})`);
       const { jobId, uploadUrl, mode } = await created.json();
       state.jobId = jobId;
-      els.jobIdText.textContent = jobId.slice(0, 8) + "…";
       pushLog(`job ${jobId.slice(0, 8)}… created · mode=${mode}`, "ok");
-      pushLog(`PUT ${uploadUrl.slice(0, 72)}${uploadUrl.length > 72 ? "…" : ""}`, "dim");
 
       let lastMilestone = -1;
       await xhrUpload(uploadUrl, state.file, (p) => {
         const pct = Math.round(p * 100);
-        setRing(pct, "upload");
-        els.statusText.textContent = `Uploading… ${pct}%`;
+        setBar(pct);
         const milestone = Math.floor(pct / 25);
         if (milestone > lastMilestone && milestone > 0) {
           lastMilestone = milestone;
@@ -422,21 +400,20 @@
       });
 
       pushLog(`upload complete (${fmtBytes(state.file.size)})`, "ok");
-      els.statusText.textContent = "Queuing job…";
-      setRing(100, "upload");
+      setBar(100);
       const started = await fetch(`/api/jobs/${jobId}/start`, { method: "POST" });
       if (!started.ok) throw new Error(`Could not queue job (${started.status})`);
       pushLog("POST /api/jobs/:id/start → queued", "ok");
 
-      state.phase = "queued";
+      setPhase("queued");
       state.queuedAt = Date.now();
       state.lastQueueLog = Date.now();
       state.warnedWorker = false;
-      els.workerOffline.classList.add("hidden");
-      els.progressTitle.textContent = "In the queue";
-      els.statusText.textContent = "Waiting for a GPU worker…";
-      setRing(0, "queue", "spin");
-      setTimeline(2);
+      els.procWarn.classList.add("hidden");
+      els.procTitle.textContent = "Giving your clip a lift";
+      els.procSub.textContent = "Waiting for a free GPU worker";
+      setBar(0, "spin");
+      setStep(1);
       startTick();
       startPolling();
     } catch (err) {
@@ -461,31 +438,28 @@
       const job = await r.json();
 
       if (job.status === "processing" && state.phase !== "processing") {
-        state.phase = "processing";
-        els.workerOffline.classList.add("hidden");
-        els.progressTitle.textContent = "Enhancing on the GPU";
-        els.statusText.textContent = "Running Real-ESRGAN ×4…";
-        setTimeline(3);
-        pushLog("worker claimed job (x-worker-secret ok)", "ok");
-        pushLog("ffprobe → duration within limit", "info");
-        pushLog("downloading input → enhancing every frame…", "info");
+        setPhase("processing");
+        els.procWarn.classList.add("hidden");
+        els.procTitle.textContent = "Enhancing with Real-ESRGAN";
+        els.procSub.textContent = "Every frame, ×4 — a few minutes";
+        setStep(2);
+        pushLog("worker claimed job", "ok");
         pushLog("model: realesr-general-x4v3 · scale 4", "dim");
-        if (state.duration) state.framesTotal = Math.round(state.duration * 30);
+        if (state.duration) state.framesTotal = Math.max(1, Math.round(state.duration * 30));
         startFrameSim();
       }
 
       if (job.status === "done") {
-        state.phase = "done";
+        setPhase("done");
         state.processingSeconds = job.processingSeconds;
         state.resultUrls = { input: job.inputUrl, output: job.outputUrl };
         stopTimers();
-        setRing(100, "done");
-        setTimeline(4);
+        setBar(100);
+        setStep(3);
         pushLog("output uploaded to storage", "ok");
-        pushLog(`POST /api/worker/:id/done (${fmtSeconds(state.processingSeconds)})`, "ok");
-        els.statusText.textContent = "Ready — loading comparison…";
-        els.termLive.style.opacity = "0.4";
-        setTimeout(showResult, 650);
+        pushLog(`done in ${fmtSeconds(state.processingSeconds)}`, "ok");
+        els.termLive.style.opacity = "0.35";
+        setTimeout(showResult, 500);
       }
 
       if (job.status === "failed") {
@@ -499,19 +473,20 @@
 
   function failFlow(message) {
     stopTimers();
-    state.phase = "failed";
-    els.progressTitle.textContent = "Something went wrong";
-    els.statusText.textContent = "Failed";
-    setRing(0, "failed", "fail");
-    setTimeline(0);
-    els.failedMsg.textContent = message;
-    els.failedAlert.classList.remove("hidden");
-    els.failedActions.classList.remove("hidden");
-    els.termLive.style.opacity = "0.4";
+    setPhase("failed");
+    els.procTitle.textContent = "Something went wrong";
+    els.procSub.textContent = "The job did not finish";
+    els.procFailMsg.textContent = message;
+    els.procFail.classList.remove("hidden");
+    els.procSpin.style.display = "none";
+    els.footFailMsg.textContent = message;
+    els.termLive.style.opacity = "0.35";
+    setBar(0);
+    setStep(0);
   }
 
   async function showResult() {
-    showPanel("result");
+    setPhase("done");
     els.statTime.textContent = fmtSeconds(state.processingSeconds);
     els.statIn.textContent = "loading…";
     els.statOut.textContent = "loading…";
@@ -531,7 +506,7 @@
       hideSkeleton();
       els.timeDur.textContent = fmtTime(els.videoBefore.duration);
       els.statIn.textContent = `${els.videoBefore.videoWidth}×${els.videoBefore.videoHeight} · ${fmtTime(els.videoBefore.duration)}`;
-      if (state.autoplay) playVideos();
+      playVideos();
     };
     els.videoAfter.onloadedmetadata = () => {
       els.statOut.textContent = `${els.videoAfter.videoWidth}×${els.videoAfter.videoHeight}`;
@@ -547,8 +522,9 @@
       toast("error", "Couldn't load the enhanced video.");
     };
     els.videoBefore.ontimeupdate = () => {
-      els.timeCur.textContent = fmtTime(els.videoBefore.currentTime);
       const d = els.videoBefore.duration;
+      els.timeCur.textContent = fmtTime(els.videoBefore.currentTime);
+      els.cmpTime.textContent = fmtTime(els.videoBefore.currentTime);
       if (d) {
         const pct = (els.videoBefore.currentTime / d) * 100;
         els.scrub.value = Math.round(pct * 10);
@@ -566,16 +542,13 @@
     els.videoBefore.onended = () => {
       els.videoBefore.currentTime = 0;
       els.videoAfter.currentTime = 0;
-      if (state.autoplay) {
-        playVideos();
-      } else {
-        els.playBtn.classList.remove("playing");
-      }
+      playVideos();
     };
     els.videoBefore.src = state.resultUrls.input;
     els.videoAfter.src = state.resultUrls.output;
     els.videoBefore.load();
     els.videoAfter.load();
+    els.resultStats.classList.remove("hidden");
   }
 
   function playVideos() {
@@ -594,7 +567,7 @@
   }
 
   function setSliderPos(pct) {
-    const p = Math.min(100, Math.max(0, pct));
+    const p = Math.min(98, Math.max(2, pct));
     els.compare.style.setProperty("--pos", p + "%");
     els.handle.style.left = p + "%";
     els.handle.setAttribute("aria-valuenow", Math.round(p));
@@ -634,6 +607,7 @@
         els.videoBefore.currentTime = t;
         els.videoAfter.currentTime = t;
         els.timeCur.textContent = fmtTime(t);
+        els.cmpTime.textContent = fmtTime(t);
       }
     });
   }
@@ -641,10 +615,9 @@
   async function downloadResult() {
     if (!state.resultUrls) return;
     const btn = els.downloadBtn;
-    btn.classList.add("busy");
+    btn.disabled = true;
     const orig = btn.innerHTML;
-    btn.innerHTML =
-      '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Preparing…';
+    btn.innerHTML = "Preparing…";
     try {
       const r = await fetch(state.resultUrls.output);
       if (!r.ok) throw new Error(`Download failed (${r.status})`);
@@ -660,96 +633,55 @@
     } catch (err) {
       toast("error", err.message || "Download failed.");
     } finally {
-      btn.classList.remove("busy");
+      btn.disabled = false;
       btn.innerHTML = orig;
     }
   }
 
-  function initHeader() {
-    const onScroll = () => els.topbar.classList.toggle("scrolled", window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-  }
-
-  function initFaq() {
-    document.querySelectorAll(".faq-q").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const item = btn.closest(".faq-item");
-        const open = item.classList.toggle("open");
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
-      });
-    });
-  }
-
-  function initMenu() {
-    els.menuBtn.addEventListener("click", () => {
-      const open = els.mobileMenu.classList.toggle("hidden");
-      els.menuBtn.setAttribute("aria-expanded", open ? "false" : "true");
-    });
-    els.mobileMenu.querySelectorAll("a").forEach((a) =>
-      a.addEventListener("click", () => {
-        els.mobileMenu.classList.add("hidden");
-        els.menuBtn.setAttribute("aria-expanded", "false");
-      })
-    );
-  }
-
   function bindEvents() {
-    els.dropzone.addEventListener("click", () => els.fileInput.click());
-    els.dropzone.addEventListener("keydown", (e) => {
+    els.dz.addEventListener("click", (e) => {
+      if (e.target.closest("#fcRemove") || e.target.closest("#enhanceBtn")) return;
+      els.fileInput.click();
+    });
+    els.dz.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); els.fileInput.click(); }
     });
     els.fileInput.addEventListener("change", () => handleFile(els.fileInput.files[0]));
-    els.fcRemove.addEventListener("click", () => resetUI(false));
+    els.fcRemove.addEventListener("click", (e) => {
+      e.stopPropagation();
+      resetUI();
+    });
 
     ["dragenter", "dragover"].forEach((ev) =>
-      els.dropzone.addEventListener(ev, (e) => {
+      els.dz.addEventListener(ev, (e) => {
         e.preventDefault();
-        els.dropzone.classList.add("dragover");
+        els.dz.classList.add("dragover");
       })
     );
     ["dragleave", "drop"].forEach((ev) =>
-      els.dropzone.addEventListener(ev, (e) => {
+      els.dz.addEventListener(ev, (e) => {
         e.preventDefault();
-        els.dropzone.classList.remove("dragover");
+        els.dz.classList.remove("dragover");
       })
     );
-    els.dropzone.addEventListener("drop", (e) => {
+    els.dz.addEventListener("drop", (e) => {
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       handleFile(f);
     });
     document.addEventListener("dragover", (e) => e.preventDefault());
     document.addEventListener("drop", (e) => e.preventDefault());
 
-    els.enhanceBtn.addEventListener("click", beginEnhance);
+    els.enhanceBtn.addEventListener("click", (e) => { e.stopPropagation(); beginEnhance(); });
     els.retryBtn.addEventListener("click", () => {
-      resetUI(true);
-      setTimeout(beginEnhance, 250);
+      resetUI();
+      beginEnhance();
     });
-    els.backBtn.addEventListener("click", () => resetUI(false));
-    els.cancelBtn.addEventListener("click", () => resetUI(false));
-    els.againBtn.addEventListener("click", () => resetUI(false));
+    els.backBtn.addEventListener("click", resetUI);
+    els.cancelBtn.addEventListener("click", resetUI);
+    els.againBtn.addEventListener("click", resetUI);
     els.downloadBtn.addEventListener("click", downloadResult);
 
-    els.autoplayToggle.addEventListener("change", () => {
-      state.autoplay = els.autoplayToggle.checked;
-      if (!state.autoplay && !els.videoBefore.paused) {
-        els.videoBefore.pause();
-        els.videoAfter.pause();
-        els.playBtn.classList.remove("playing");
-      }
-    });
-
-    els.newsForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      toast("success", "Thanks — you're on the list for release notes.");
-      els.newsForm.reset();
-    });
-
     initCompare();
-    initHeader();
-    initFaq();
-    initMenu();
   }
 
   bindEvents();
