@@ -6,6 +6,7 @@ const cors = require('cors');
 const multer = require('multer');
 const store = require('./jobs');
 const b2 = require('./b2');
+const gpu = require('./gpu');
 
 function loadEnv() {
   try {
@@ -34,6 +35,9 @@ const LOCAL_MODE = !b2.configured;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES } });
 
 store.startSweeper();
+
+app.use('/api/worker', gpu.touch);
+app.use('/api', gpu.router(requireWorkerSecret));
 
 function requireWorkerSecret(req, res, next) {
   if (!WORKER_SECRET) return res.status(503).json({ error: 'WORKER_SECRET is not configured on the server' });
@@ -67,6 +71,14 @@ function publicJob(job) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, storage: b2.configured ? 'b2' : 'local', jobs: store.stats() });
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({
+    maxUploadMb: 50,
+    maxDurationS: Number(process.env.MAX_DURATION_S) || 10,
+    scale: Number(process.env.SCALE) || 4,
+  });
 });
 
 app.post('/api/jobs', async (req, res, next) => {

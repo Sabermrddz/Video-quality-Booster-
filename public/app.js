@@ -4,8 +4,10 @@
   const $ = (id) => document.getElementById(id);
 
   const els = {
-    apiDot: $("apiDot"),
-    apiLabel: $("apiLabel"),
+    gpuTestBtn: $("gpuTestBtn"),
+    gpuBadge: $("gpuBadge"),
+    gpuTestResult: $("gpuTestResult"),
+    gpuQueueWarn: $("gpuQueueWarn"),
     paneUpload: $("paneUpload"),
     paneProc: $("paneProc"),
     paneResult: $("paneResult"),
@@ -82,6 +84,10 @@
     framesDone: 0,
     framesTotal: 300,
     lastQueueLog: 0,
+    gpuOnline: false,
+    gpuBusy: false,
+    gpuStatusTimer: null,
+    gpuTestRunning: false,
   };
 
   function fmtBytes(n) {
@@ -143,18 +149,118 @@
     els.logBody.textContent = "";
   }
 
-  async function checkHealth() {
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function gpuResult(msg) {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    els.gpuTestResult.textContent = `Last test ${hh}:${mm}:${ss} - ${msg}`;
+  }
+
+  function updateGpuBadge() {
+    if (!state.gpuOnline) {
+      els.gpuBadge.className = "gpu-badge offline";
+      els.gpuBadge.textContent = "offline";
+    } else if (state.gpuBusy) {
+      els.gpuBadge.className = "gpu-badge busy";
+      els.gpuBadge.textContent = "busy";
+    } else {
+      els.gpuBadge.className = "gpu-badge online";
+      els.gpuBadge.textContent = "online";
+    }
+    updateQueueWarning();
+  }
+
+  function updateQueueWarning() {
+    const canEnhance = !!state.file && isFinite(state.duration) && state.duration <= LIMIT_DURATION_S + 0.05;
+    const showWarn = canEnhance && !state.gpuOnline && (state.phase === "ready" || state.phase === "idle");
+    els.gpuQueueWarn.classList.toggle("hidden", !showWarn);
+    if (canEnhance) {
+      els.enhanceBtn.disabled = false;
+      els.enhanceBtn.classList.remove("hidden");
+    }
+  }
+
+  async function refreshGpuStatus() {
     try {
-      const r = await fetch("/api/health");
+      const r = await fetch("/api/gpu/status");
       if (!r.ok) throw new Error("bad status");
       const data = await r.json();
-      state.storage = data.storage;
-      els.apiDot.className = "status-dot ok";
-      els.apiLabel.textContent = "Worker ready";
+      state.gpuOnline = !!data.online;
+      state.gpuBusy = !!data.busy;
     } catch {
-      state.storage = "offline";
-      els.apiDot.className = "status-dot bad";
-      els.apiLabel.textContent = "API offline";
+      state.gpuOnline = false;
+      state.gpuBusy = false;
+    }
+    updateGpuBadge();
+  }
+
+  async function runGpuConnectionTest() {
+    if (state.gpuTestRunning) return;
+    state.gpuTestRunning = true;
+    els.gpuTestBtn.disabled = true;
+    const oldText = els.gpuTestBtn.textContent;
+    els.gpuTestBtn.textContent = "Testing...";
+    els.gpuTestBtn.classList.add("testing");
+    try {
+      const started = await fetch("/api/gpu/ping", { method: "POST" });
+      if (started.status === 429) {
+        gpuResult("Wait a few seconds before testing again");
+        return;
+      }
+      if (!started.ok) throw new Error("cannot_start_ping");
+      const payload = await started.json();
+      const pingId = payload && payload.pingId;
+      if (!pingId) throw new Error("missing_ping_id");
+
+      const begin = Date.now();
+      while (Date.now() - begin <= 25000) {
+        const r = await fetch(`/api/gpu/ping/${encodeURIComponent(pingId)}`);
+        if (!r.ok) throw new Error("poll_failed");
+        const data = await r.json();
+
+        if (data.status === "ok") {
+          if (data.state === "connected") {
+            const gpu = data.gpu || {};
+            const gb = Math.round((Number(gpu.vram_mb) || 0) / 1024);
+            const secs = (Number(data.rttMs || 0) / 1000).toFixed(1);
+            gpuResult(`GPU connected: ${gpu.name || "Unknown GPU"} (${gb} GB), model ${gpu.model || "unknown"}, response ${secs} s`);
+          } else if (data.state === "busy") {
+            gpuResult("GPU connected, currently processing a job");
+          } else if (data.state === "no_gpu") {
+            gpuResult("Worker is online but has no GPU: set the Kaggle accelerator to GPU");
+          } else {
+            gpuResult("Cannot reach the server");
+          }
+          return;
+        }
+
+        if (data.status === "timeout") {
+          if (data.state === "offline") {
+            gpuResult("GPU worker offline: start the Kaggle notebook");
+          } else {
+            const seen = Number(data.lastSeenSecondsAgo);
+            const seenText = Number.isFinite(seen) ? seen : "unknown";
+            gpuResult(`Worker seen ${seenText} s ago but did not answer: check the notebook output`);
+          }
+          return;
+        }
+
+        await sleep(1000);
+      }
+      gpuResult("Cannot reach the server");
+    } catch {
+      gpuResult("Cannot reach the server");
+    } finally {
+      els.gpuTestBtn.classList.remove("testing");
+      els.gpuTestBtn.textContent = oldText;
+      els.gpuTestBtn.disabled = false;
+      state.gpuTestRunning = false;
+      refreshGpuStatus();
     }
   }
 
@@ -234,6 +340,7 @@
     els.timeDur.textContent = "0:00";
     els.resultStats.classList.add("hidden");
     clearLogs();
+    updateQueueWarning();
   }
 
   function startTick() {
@@ -307,16 +414,19 @@
         if (d > LIMIT_DURATION_S + 0.05) {
           notice("This clip is over 10 seconds. Pick a shorter one.");
           toast("error", "Clip is longer than 10 seconds — trim it first.");
+          els.gpuQueueWarn.classList.add("hidden");
         } else {
           notice("");
           state.phase = "ready";
           els.enhanceBtn.disabled = false;
           els.enhanceBtn.classList.remove("hidden");
+          updateQueueWarning();
         }
       } else {
         state.duration = null;
         notice("Couldn't read the clip duration in this browser.");
         toast("error", "Couldn't read the clip duration in this browser.");
+        els.gpuQueueWarn.classList.add("hidden");
       }
     }
   }
@@ -680,10 +790,12 @@
     els.cancelBtn.addEventListener("click", resetUI);
     els.againBtn.addEventListener("click", resetUI);
     els.downloadBtn.addEventListener("click", downloadResult);
+    els.gpuTestBtn.addEventListener("click", runGpuConnectionTest);
 
     initCompare();
   }
 
   bindEvents();
-  checkHealth();
+  refreshGpuStatus();
+  state.gpuStatusTimer = setInterval(refreshGpuStatus, 10000);
 })();

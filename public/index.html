@@ -32,11 +32,13 @@
       <a href="#about">About</a>
     </div>
     <div class="nav-right">
-      <span class="status-pill" id="apiPill" title="Backend health">
-        <svg class="status-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-        <span id="apiLabel">Worker status</span>
-        <span class="status-dot" id="apiDot"></span>
-      </span>
+      <div class="gpu-test-head">
+        <div class="gpu-test-row">
+          <button class="btn dark" id="gpuTestBtn" type="button">Test connection with GPU provider</button>
+          <span class="gpu-badge offline" id="gpuBadge" aria-live="polite">offline</span>
+        </div>
+        <p class="gpu-test-result" id="gpuTestResult">Last test: not run yet</p>
+      </div>
     </div>
   </nav>
 
@@ -94,6 +96,7 @@
               </div>
               <input type="file" id="fileInput" accept="video/mp4,video/webm,video/*" hidden />
               <button class="btn lime dz-go hidden" id="enhanceBtn" type="button">Enhance now</button>
+              <p class="gpu-queue-warn hidden" id="gpuQueueWarn">No GPU worker: your video will wait in the queue.</p>
             </div>
 
             <!-- PHASE: processing -->
