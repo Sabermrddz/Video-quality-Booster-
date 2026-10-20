@@ -1,6 +1,8 @@
 (() => {
   "use strict";
 
+  document.documentElement.classList.add("js");
+
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -60,7 +62,7 @@
     toasts: $("toasts"),
   };
 
-  const LIMIT_DURATION_S = 10;
+  const LIMIT_DURATION_S = 30;
   const LIMIT_SIZE = 50 * 1024 * 1024;
   const POLL_MS = 3000;
   const WORKER_WARN_MS = 60000;
@@ -412,8 +414,8 @@
       if (isFinite(d) && d > 0) {
         state.duration = d;
         if (d > LIMIT_DURATION_S + 0.05) {
-          notice("This clip is over 10 seconds. Pick a shorter one.");
-          toast("error", "Clip is longer than 10 seconds — trim it first.");
+          notice("This clip is over 30 seconds. Pick a shorter one.");
+          toast("error", "Clip is longer than 30 seconds — trim it first.");
           els.gpuQueueWarn.classList.add("hidden");
         } else {
           notice("");
@@ -795,7 +797,26 @@
     initCompare();
   }
 
+  function initReveal() {
+    const items = document.querySelectorAll(".reveal");
+    if (!items.length) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced || !("IntersectionObserver" in window)) {
+      items.forEach((el) => el.classList.add("in"));
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("in");
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    items.forEach((el) => observer.observe(el));
+  }
+
   bindEvents();
+  initReveal();
   refreshGpuStatus();
   state.gpuStatusTimer = setInterval(refreshGpuStatus, 10000);
 })();
