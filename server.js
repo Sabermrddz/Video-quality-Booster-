@@ -85,8 +85,9 @@ app.post('/api/jobs', async (req, res, next) => {
   try {
     const id = crypto.randomUUID();
     const job = store.create(id);
-    const uploadUrl = b2.configured ? await b2.presignPut(job.inputKey) : `/api/files/${id}/input`;
-    res.status(201).json({ jobId: id, uploadUrl, mode: b2.configured ? 'b2' : 'local' });
+    // Always use server upload endpoint to avoid CORS issues with B2
+    const uploadUrl = `/api/jobs/${id}/upload-direct`;
+    res.status(201).json({ jobId: id, uploadUrl, mode: 'server' });
   } catch (err) {
     next(err);
   }
@@ -130,6 +131,25 @@ app.post('/api/jobs/:id/upload', rejectIfTooLarge, upload.single('file'), async 
   }
 });
 
+app.put('/api/jobs/:id/upload-direct', rejectIfTooLarge, express.raw({ limit: MAX_FILE_BYTES, type: () => true }), async (req, res, next) => {
+  try {
+    const job = store.get(req.params.id);
+    if (!job) return res.status(404).json({ error: 'not_found' });
+    if (job.status !== 'created') return res.status(409).json({ error: `status_is_${job.status}` });
+    if (!req.body || req.body.length === 0) return res.status(400).json({ error: 'empty body' });
+    
+    if (b2.configured) {
+      // Upload to B2 from server side (no CORS issues)
+      await b2.putObject(job.inputKey, req.body, 'video/mp4');
+    } else {
+      job.inputBuffer = Buffer.from(req.body);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/jobs/:id/input', async (req, res, next) => {
   try {
     const job = store.get(req.params.id);
@@ -141,8 +161,12 @@ app.get('/api/jobs/:id/input', async (req, res, next) => {
       res.setHeader('Content-Type', 'video/mp4');
       res.setHeader('Cache-Control', 'no-cache');
       
-      // Stream the body
-      const stream = response.Body;
+      // Convert Web ReadableStream to Node.js stream
+      const { Readable } = require('stream');
+      const stream = response.Body instanceof Readable 
+        ? response.Body 
+        : Readable.from(response.Body);
+      
       stream.pipe(res);
       stream.on('error', (err) => {
         console.error('Stream error:', err);
@@ -172,8 +196,12 @@ app.get('/api/jobs/:id/output', async (req, res, next) => {
       res.setHeader('Content-Disposition', `attachment; filename="enhanced-${job.id.slice(0, 8)}.mp4"`);
       res.setHeader('Cache-Control', 'no-cache');
       
-      // Stream the body
-      const stream = response.Body;
+      // Convert Web ReadableStream to Node.js stream
+      const { Readable } = require('stream');
+      const stream = response.Body instanceof Readable 
+        ? response.Body 
+        : Readable.from(response.Body);
+      
       stream.pipe(res);
       stream.on('error', (err) => {
         console.error('Stream error:', err);
