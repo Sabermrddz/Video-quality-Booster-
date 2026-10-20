@@ -1,4 +1,4 @@
-const PROCESSING_TIMEOUT_MS = Number(process.env.STALE_PROCESSING_MS) || 15 * 60 * 1000;
+const PROCESSING_TIMEOUT_MS = Number(process.env.STALE_PROCESSING_MS) || 30 * 60 * 1000;
 const JOB_TTL_MS = 2 * 60 * 60 * 1000;
 
 const jobs = new Map();
