@@ -107,9 +107,15 @@ app.get('/api/jobs/:id', async (req, res) => {
   if (!job) return res.status(404).json({ error: 'not_found' });
   const out = publicJob(job);
   if (job.status === 'done') {
-    // Always use server proxy URLs instead of presigned URLs to avoid CORS issues
-    out.inputUrl = `/api/jobs/${job.id}/input`;
-    out.outputUrl = `/api/jobs/${job.id}/output`;
+    // Use presigned URLs for video playback (works in <video> tags without CORS)
+    // Only fetch/download needs the proxy
+    if (b2.configured) {
+      out.inputUrl = await b2.presignGet(job.inputKey);
+      out.outputUrl = await b2.presignGet(job.outputKey);
+    } else {
+      out.inputUrl = `/api/jobs/${job.id}/input`;
+      out.outputUrl = `/api/jobs/${job.id}/output`;
+    }
   }
   res.json(out);
 });
@@ -156,24 +162,9 @@ app.get('/api/jobs/:id/input', async (req, res, next) => {
     if (!job) return res.status(404).json({ error: 'not_found' });
     
     if (b2.configured) {
-      // Stream from B2 instead of redirecting to avoid CORS issues
-      const response = await b2.getObject(job.inputKey);
-      res.setHeader('Content-Type', 'video/mp4');
-      res.setHeader('Cache-Control', 'no-cache');
-      
-      // Convert Web ReadableStream to Node.js stream
-      const { Readable } = require('stream');
-      const stream = response.Body instanceof Readable 
-        ? response.Body 
-        : Readable.from(response.Body);
-      
-      stream.pipe(res);
-      stream.on('error', (err) => {
-        console.error('Stream error:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'stream_error' });
-        }
-      });
+      // Redirect to presigned URL for video playback
+      const url = await b2.presignGet(job.inputKey);
+      return res.redirect(url);
     } else {
       if (!job.inputBuffer) return res.status(409).json({ error: 'input not uploaded yet' });
       sendBuffer(req, res, job.inputBuffer);
@@ -190,25 +181,18 @@ app.get('/api/jobs/:id/output', async (req, res, next) => {
     if (job.status !== 'done') return res.status(409).json({ error: `status_is_${job.status}` });
     
     if (b2.configured) {
-      // Stream from B2 instead of redirecting to avoid CORS issues
-      const response = await b2.getObject(job.outputKey);
-      res.setHeader('Content-Type', 'video/mp4');
-      res.setHeader('Content-Disposition', `attachment; filename="enhanced-${job.id.slice(0, 8)}.mp4"`);
-      res.setHeader('Cache-Control', 'no-cache');
-      
-      // Convert Web ReadableStream to Node.js stream
-      const { Readable } = require('stream');
-      const stream = response.Body instanceof Readable 
-        ? response.Body 
-        : Readable.from(response.Body);
-      
-      stream.pipe(res);
-      stream.on('error', (err) => {
-        console.error('Stream error:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'stream_error' });
-        }
+      // For downloads, redirect to presigned URL with response-content-disposition
+      const cmd = new (require('@aws-sdk/client-s3').GetObjectCommand)({
+        Bucket: process.env.B2_BUCKET,
+        Key: job.outputKey,
+        ResponseContentDisposition: `attachment; filename="enhanced-${job.id.slice(0, 8)}.mp4"`,
       });
+      const downloadUrl = await require('@aws-sdk/s3-request-presigner').getSignedUrl(
+        b2.s3,
+        cmd,
+        { expiresIn: 1200 }
+      );
+      return res.redirect(downloadUrl);
     } else {
       if (!job.outputBuffer) return res.status(409).json({ error: 'output not ready' });
       res.setHeader('Content-Type', 'video/mp4');
