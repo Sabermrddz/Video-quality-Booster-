@@ -752,30 +752,16 @@
 
   async function downloadResult() {
     if (!state.jobId) return;
-    const btn = els.downloadBtn;
-    btn.disabled = true;
-    const orig = btn.innerHTML;
-    btn.innerHTML = "Preparing…";
-    try {
-      // Use the server endpoint which handles both B2 and local mode
-      const downloadUrl = `/api/jobs/${state.jobId}/output`;
-      const r = await fetch(downloadUrl);
-      if (!r.ok) throw new Error(`Download failed (${r.status})`);
-      const blob = await r.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `enhanced-${state.jobId.slice(0, 8)}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      toast("success", "Enhanced clip downloaded.");
-    } catch (err) {
-      toast("error", err.message || "Download failed.");
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = orig;
-    }
+    // Plain browser navigation instead of fetch(): the server answers with a redirect to a
+    // Backblaze presigned URL (Content-Disposition: attachment). fetch() would be blocked by CORS
+    // after that cross-origin redirect ("Failed to fetch"); a normal link click is not.
+    const a = document.createElement("a");
+    a.href = `/api/jobs/${state.jobId}/output`;
+    a.download = `enhanced-${state.jobId.slice(0, 8)}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast("success", "Download started.");
   }
 
   function bindEvents() {
