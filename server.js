@@ -76,7 +76,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({
     maxUploadMb: 50,
-    maxDurationS: Number(process.env.MAX_DURATION_S) || 10,
+    maxDurationS: Number(process.env.MAX_DURATION_S) || 30,
     scale: Number(process.env.SCALE) || 4,
   });
 });
@@ -106,8 +106,9 @@ app.get('/api/jobs/:id', async (req, res) => {
   if (!job) return res.status(404).json({ error: 'not_found' });
   const out = publicJob(job);
   if (job.status === 'done') {
-    out.inputUrl = await inputGetUrl(job);
-    out.outputUrl = b2.configured ? await b2.presignGet(job.outputKey) : `/api/jobs/${job.id}/output`;
+    // Always use server proxy URLs instead of presigned URLs to avoid CORS issues
+    out.inputUrl = `/api/jobs/${job.id}/input`;
+    out.outputUrl = `/api/jobs/${job.id}/output`;
   }
   res.json(out);
 });
@@ -133,12 +134,26 @@ app.get('/api/jobs/:id/input', async (req, res, next) => {
   try {
     const job = store.get(req.params.id);
     if (!job) return res.status(404).json({ error: 'not_found' });
+    
     if (b2.configured) {
-      const url = await b2.presignGet(job.inputKey);
-      return res.redirect(url);
+      // Stream from B2 instead of redirecting to avoid CORS issues
+      const response = await b2.getObject(job.inputKey);
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Cache-Control', 'no-cache');
+      
+      // Stream the body
+      const stream = response.Body;
+      stream.pipe(res);
+      stream.on('error', (err) => {
+        console.error('Stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'stream_error' });
+        }
+      });
+    } else {
+      if (!job.inputBuffer) return res.status(409).json({ error: 'input not uploaded yet' });
+      sendBuffer(req, res, job.inputBuffer);
     }
-    if (!job.inputBuffer) return res.status(409).json({ error: 'input not uploaded yet' });
-    sendBuffer(req, res, job.inputBuffer);
   } catch (err) {
     next(err);
   }
@@ -149,12 +164,29 @@ app.get('/api/jobs/:id/output', async (req, res, next) => {
     const job = store.get(req.params.id);
     if (!job) return res.status(404).json({ error: 'not_found' });
     if (job.status !== 'done') return res.status(409).json({ error: `status_is_${job.status}` });
+    
     if (b2.configured) {
-      const url = await b2.presignGet(job.outputKey);
-      return res.redirect(url);
+      // Stream from B2 instead of redirecting to avoid CORS issues
+      const response = await b2.getObject(job.outputKey);
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', `attachment; filename="enhanced-${job.id.slice(0, 8)}.mp4"`);
+      res.setHeader('Cache-Control', 'no-cache');
+      
+      // Stream the body
+      const stream = response.Body;
+      stream.pipe(res);
+      stream.on('error', (err) => {
+        console.error('Stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'stream_error' });
+        }
+      });
+    } else {
+      if (!job.outputBuffer) return res.status(409).json({ error: 'output not ready' });
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', `attachment; filename="enhanced-${job.id.slice(0, 8)}.mp4"`);
+      sendBuffer(req, res, job.outputBuffer);
     }
-    if (!job.outputBuffer) return res.status(409).json({ error: 'output not ready' });
-    sendBuffer(req, res, job.outputBuffer);
   } catch (err) {
     next(err);
   }

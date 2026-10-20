@@ -33,6 +33,12 @@ async function presignGet(key) {
   return getSignedUrl(s3, cmd, { expiresIn: URL_TTL_SECONDS });
 }
 
+async function getObject(key) {
+  const cmd = new GetObjectCommand({ Bucket: process.env.B2_BUCKET, Key: key });
+  const response = await s3.send(cmd);
+  return response;
+}
+
 async function putObject(key, body, contentType) {
   await s3.send(
     new PutObjectCommand({
@@ -44,4 +50,4 @@ async function putObject(key, body, contentType) {
   );
 }
 
-module.exports = { configured, s3, presignPut, presignGet, putObject };
+module.exports = { configured, s3, presignPut, presignGet, getObject, putObject };
