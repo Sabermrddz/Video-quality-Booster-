@@ -751,18 +751,20 @@
   }
 
   async function downloadResult() {
-    if (!state.resultUrls) return;
+    if (!state.jobId) return;
     const btn = els.downloadBtn;
     btn.disabled = true;
     const orig = btn.innerHTML;
     btn.innerHTML = "Preparing…";
     try {
-      const r = await fetch(state.resultUrls.output);
+      // Use the server endpoint which handles both B2 and local mode
+      const downloadUrl = `/api/jobs/${state.jobId}/output`;
+      const r = await fetch(downloadUrl);
       if (!r.ok) throw new Error(`Download failed (${r.status})`);
       const blob = await r.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `enhanced-${(state.jobId || "clip").slice(0, 8)}.mp4`;
+      a.download = `enhanced-${state.jobId.slice(0, 8)}.mp4`;
       document.body.appendChild(a);
       a.click();
       a.remove();
