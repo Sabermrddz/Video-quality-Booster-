@@ -633,8 +633,15 @@
       hideSkeleton();
       toast("error", "Couldn't load the enhanced video.");
     };
+    // Optimize video sync with requestAnimationFrame instead of every timeupdate
+    let isSyncing = false;
+    let lastSyncTime = 0;
+    
     els.videoBefore.ontimeupdate = () => {
       const d = els.videoBefore.duration;
+      const now = performance.now();
+      
+      // Update UI elements (less expensive)
       els.timeCur.textContent = fmtTime(els.videoBefore.currentTime);
       els.cmpTime.textContent = fmtTime(els.videoBefore.currentTime);
       if (d) {
@@ -642,20 +649,39 @@
         els.scrub.value = Math.round(pct * 10);
         els.scrub.style.setProperty("--fill", pct + "%");
       }
-      if (els.videoBefore.paused && !els.videoAfter.paused) {
-        els.videoAfter.pause();
-      } else if (!els.videoBefore.paused && els.videoAfter.paused) {
-        els.videoAfter.play().catch(() => {});
-      }
-      if (Math.abs(els.videoAfter.currentTime - els.videoBefore.currentTime) > 0.18) {
-        els.videoAfter.currentTime = els.videoBefore.currentTime;
-      }
+      
+      // Throttle sync operations to once per 200ms to prevent lag
+      if (isSyncing || now - lastSyncTime < 200) return;
+      
+      isSyncing = true;
+      lastSyncTime = now;
+      
+      requestAnimationFrame(() => {
+        // Sync play/pause states
+        if (els.videoBefore.paused && !els.videoAfter.paused) {
+          els.videoAfter.pause();
+        } else if (!els.videoBefore.paused && els.videoAfter.paused) {
+          els.videoAfter.play().catch(() => {});
+        }
+        
+        // Sync time only if drift is significant (reduced frequency)
+        const drift = Math.abs(els.videoAfter.currentTime - els.videoBefore.currentTime);
+        if (drift > 0.25) {
+          els.videoAfter.currentTime = els.videoBefore.currentTime;
+        }
+        
+        isSyncing = false;
+      });
     };
     els.videoBefore.onended = () => {
       els.videoBefore.currentTime = 0;
       els.videoAfter.currentTime = 0;
       playVideos();
     };
+    // Set preload strategy for smoother playback
+    els.videoBefore.preload = "auto";
+    els.videoAfter.preload = "auto";
+    
     els.videoBefore.src = state.resultUrls.input;
     els.videoAfter.src = state.resultUrls.output;
     els.videoBefore.load();
